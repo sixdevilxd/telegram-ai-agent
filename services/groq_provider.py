@@ -32,7 +32,11 @@ class GroqProvider:
             self.model = AGENTROUTER_MODEL
             self.vision_model = AGENTROUTER_MODEL
             self.url = AGENTROUTER_BASE_URL
-            self.extra_headers = {}
+            self.extra_headers = {
+                "User-Agent": "Claude-Code/0.1.0 (linux; x64)",
+                "HTTP-Referer": "https://github.com/sixdevilxd/telegram-ai-agent",
+                "X-Title": "Telegram AI Agent",
+            }
             self._model_env = "AGENTROUTER_MODEL"
             self._key_env = "AGENTROUTER_API_KEY"
         elif LLM_PROVIDER == "openrouter":
@@ -110,9 +114,15 @@ class GroqProvider:
         if code in (401, 403):
             return f"API key tidak valid/ditolak ({code}). Cek {self._key_env} di file .env."
         if code in (404, 400):
+            server_msg = ""
+            if exc.response is not None:
+                try:
+                    server_msg = f" | Detail dari server: {exc.response.text}"
+                except Exception:
+                    pass
             return (
                 f"Model bermasalah (nama salah / tidak tersedia). "
-                f"Cek {self._model_env} di .env. "
+                f"Cek {self._model_env} di .env.{server_msg} "
                 "Contoh OpenRouter: anthropic/claude-sonnet-4.5 ; contoh Groq: llama-3.3-70b-versatile."
             )
         if code == 402:
