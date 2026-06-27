@@ -15,6 +15,7 @@ from services.persona_service import clear_persona, get_persona, set_persona
 from services.telegram_service import send_long_message
 from services.user_service import list_user_ids, list_users, upsert_user
 from tools.calculator import calculate
+from tools.crypto_tool import coin_detail, dex_search, gmgn_link, new_pairs, price, token_info, trending
 from tools.file_reader import read_text_file
 from tools.shell_tool import run_shell
 from tools.social_search import platform_guide, social_prompt, social_search
@@ -35,8 +36,8 @@ def track_user(update: Update):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
-        f"{BOT_NAME} v7 aktif.\n\n"
-        "Sekarang bisa vision + social intelligence: X/Twitter, LinkedIn, Reddit, Facebook, Instagram, TikTok, YouTube.\n"
+        f"{BOT_NAME} v8 aktif.\n\n"
+        "Fitur: chat AI, vision, social intelligence, dan crypto real-time (CoinGecko + DexScreener).\n"
         "Ketik /help untuk command lengkap."
     )
 
@@ -44,19 +45,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
-        "Command v7:\n"
-        "/asksearch topik - search lalu diringkas AI\n"
-        "/social platform query - cari di sosmed\n"
-        "/socialprompt platform topik - buat konten sosmed\n"
-        "/platform nama - panduan platform\n"
-        "/search kata kunci - web search\n"
-        "/calc ekspresi - kalkulator\n"
-        "/note teks, /notes, /clearnotes\n"
-        "/persona gaya, /clearpersona\n"
+        "Command v8:\n"
+        "Crypto:\n"
+        "/price bitcoin - harga & market\n"
+        "/coin pepe - detail koin\n"
+        "/trending - koin trending\n"
+        "/newpairs solana - new pairs/launch\n"
+        "/token <kontrak> - info token DEX\n"
+        "/dex pepe - cari pair di DEX\n"
+        "/gmgn <kontrak> - quick links gmgn/birdeye\n\n"
+        "AI & web:\n"
+        "/asksearch topik, /search query\n"
+        "/social platform query, /socialprompt platform topik, /platform nama\n"
+        "/calc, /note, /notes, /clearnotes, /persona, /clearpersona\n"
         "/id, /status, /reset\n\n"
         "Media: kirim foto/gambar atau file teks.\n\n"
-        "Admin: /stats, /users, /broadcast pesan, /shell command, /sysinfo\n\n"
-        "Auto: cari di reddit groq api, cari di linkedin ai agent, hitung 10*5."
+        "Admin: /stats, /users, /broadcast, /shell, /sysinfo\n\n"
+        "Auto: harga bitcoin, new pairs solana, cek token <kontrak>, cari di reddit groq."
     )
 
 
@@ -65,7 +70,7 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    track_user(update); await update.message.reply_text(f"{BOT_NAME} v7 aktif: text + vision + social tools siap.")
+    track_user(update); await update.message.reply_text(f"{BOT_NAME} v8 aktif: text + vision + social + crypto siap.")
 
 
 async def user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -121,8 +126,41 @@ async def asksearch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = " ".join(context.args).strip()
     if not query: return await update.message.reply_text("Contoh: /asksearch perkembangan AI terbaru")
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    results = web_search(query)
-    await send_long_message(update, agent.respond(update.effective_user.id, f"Ringkas hasil pencarian ini dalam bahasa Indonesia:\n\n{results}"))
+    await send_long_message(update, agent.respond(update.effective_user.id, f"Ringkas hasil pencarian ini dalam bahasa Indonesia:\n\n{web_search(query)}"))
+
+
+async def cmd_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update); await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    await update.message.reply_text(price(" ".join(context.args)))
+
+
+async def cmd_coin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update); await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    await update.message.reply_text(coin_detail(" ".join(context.args)))
+
+
+async def cmd_trending(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update); await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    await send_long_message(update, trending())
+
+
+async def cmd_newpairs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update); await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    await send_long_message(update, new_pairs(" ".join(context.args)))
+
+
+async def cmd_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update); await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    await send_long_message(update, token_info(" ".join(context.args)))
+
+
+async def cmd_dex(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update); await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    await send_long_message(update, dex_search(" ".join(context.args)))
+
+
+async def cmd_gmgn(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update); await update.message.reply_text(gmgn_link(" ".join(context.args)))
 
 
 async def social(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -134,8 +172,7 @@ async def social(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def socialprompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     if len(context.args) < 2: return await update.message.reply_text("Contoh: /socialprompt linkedin AI agent untuk bisnis")
-    prompt = social_prompt(context.args[0], " ".join(context.args[1:]))
-    await send_long_message(update, agent.respond(update.effective_user.id, prompt))
+    await send_long_message(update, agent.respond(update.effective_user.id, social_prompt(context.args[0], " ".join(context.args[1:]))))
 
 
 async def platform(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -215,7 +252,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def register_handlers(app):
-    for name, func in [("start", start), ("help", help_command), ("reset", reset), ("status", status), ("id", user_id), ("stats", stats), ("users", users), ("broadcast", broadcast), ("shell", shell), ("sysinfo", sysinfo), ("search", search), ("asksearch", asksearch), ("social", social), ("socialprompt", socialprompt), ("platform", platform), ("calc", calc), ("note", note), ("notes", notes), ("clearnotes", clearnotes), ("persona", persona), ("clearpersona", clearpersona)]:
+    for name, func in [
+        ("start", start), ("help", help_command), ("reset", reset), ("status", status), ("id", user_id),
+        ("stats", stats), ("users", users), ("broadcast", broadcast), ("shell", shell), ("sysinfo", sysinfo),
+        ("search", search), ("asksearch", asksearch),
+        ("price", cmd_price), ("coin", cmd_coin), ("trending", cmd_trending), ("newpairs", cmd_newpairs),
+        ("token", cmd_token), ("dex", cmd_dex), ("gmgn", cmd_gmgn),
+        ("social", social), ("socialprompt", socialprompt), ("platform", platform),
+        ("calc", calc), ("note", note), ("notes", notes), ("clearnotes", clearnotes),
+        ("persona", persona), ("clearpersona", clearpersona),
+    ]:
         app.add_handler(CommandHandler(name, func))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))

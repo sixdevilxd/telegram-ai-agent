@@ -1,25 +1,31 @@
 # Telegram AI Agent with Groq
 
-AI agent Telegram berbasis Python, Groq HTTP API, SQLite memory, Termux, vision, dan social intelligence.
+AI agent Telegram berbasis Python, Groq HTTP API, SQLite memory, Termux, vision, social intelligence, dan crypto real-time.
 
-## Fitur v7 Social Intelligence
+## Fitur v8 Crypto Intelligence
 
-- Mengenal platform: X/Twitter, LinkedIn, Reddit, Facebook, Instagram, TikTok, YouTube
-- `/social platform query` untuk membuat link pencarian sosial
-- `/socialprompt platform topik` untuk membuat konten siap posting
-- `/platform nama` untuk panduan strategi tiap platform
-- Auto routing: `cari di reddit groq api`, `cari di linkedin ai agent`
-- Vision: baca/analis gambar Telegram
-- File reader: `.txt`, `.md`, `.csv`, `.json`, `.py`, `.log`
-- Admin tools: `/stats`, `/users`, `/broadcast`, `/shell`, `/sysinfo`
+- Data crypto real-time gratis:
+  - CoinGecko: harga, market cap, volume, trending semua koin
+  - DexScreener: new pairs, new launch, info token lintas DEX/chain
+- Command crypto:
+  - `/price bitcoin`
+  - `/coin pepe`
+  - `/trending`
+  - `/newpairs solana`
+  - `/token <kontrak>`
+  - `/dex pepe`
+  - `/gmgn <kontrak>` (quick link gmgn/birdeye)
+- Optional Birdeye via `BIRDEYE_API_KEY`
+- Social intelligence: X/Twitter, LinkedIn, Reddit, Facebook, Instagram, TikTok, YouTube
+- Vision: baca/analis gambar
+- File reader, persona, notes, admin tools, web search
 
-## Update ke v7
+## Update ke v8
 
 ```bash
 cd telegram-ai-agent
 git pull
 pip install -r requirements.txt
-chmod +x scripts/*.sh
 python bot.py
 ```
 
@@ -31,17 +37,33 @@ tmux new -s telegram-agent
 bash scripts/keep_alive.sh
 ```
 
-## Contoh Sosmed
+## Contoh Crypto
 
 ```text
-/social reddit groq api
-/social linkedin ai agent untuk bisnis
-/social twitter openai groq comparison
-/socialprompt linkedin AI agent untuk UMKM
-/socialprompt reddit pengalaman pakai Termux bot
-/platform linkedin
-/platform reddit
+/price bitcoin
+/price solana
+/trending
+/newpairs solana
+/newpairs ethereum
+/dex pepe
+/token EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+/gmgn EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 ```
+
+Auto:
+
+```text
+harga bitcoin
+harga solana
+new pairs solana
+cek token <kontrak>
+```
+
+## Sumber Data
+
+- CoinGecko dan DexScreener: gratis, real-time, tanpa API key
+- Birdeye: butuh `BIRDEYE_API_KEY` (opsional, berbayar)
+- GMGN/fomo: tidak ada API publik resmi, bot memberikan quick link
 
 ## `.env`
 
@@ -54,6 +76,7 @@ BOT_NAME=Keen Telegram Agent
 ADMIN_USER_ID=id_telegram_kamu
 DATABASE_PATH=data/memory.db
 MAX_HISTORY_MESSAGES=10
+BIRDEYE_API_KEY=
 ```
 
 Jangan pernah push `.env` ke GitHub.
