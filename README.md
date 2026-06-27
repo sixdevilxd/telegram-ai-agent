@@ -2,28 +2,20 @@
 
 AI agent Telegram berbasis Python, Groq HTTP API, SQLite memory, dan siap jalan di Termux.
 
-## Fitur v2
+## Fitur v3
 
 - Chat AI via Telegram
-- Backend LLM Groq tanpa package `groq`, aman untuk Termux
+- Backend Groq tanpa package `groq`, aman untuk Termux
 - Memory percakapan per user pakai SQLite
-- Command `/start`, `/help`, `/reset`, `/status`
-- Web search sederhana via `/search kata kunci`
-- Admin stats via `/stats`
+- `/search` web search sederhana
+- `/calc` kalkulator aman
+- `/note`, `/notes`, `/clearnotes` catatan pribadi
+- `/id` untuk ambil Telegram user ID
+- `/stats` khusus admin
 - Logging ke `logs/bot.log`
 - Keep-alive script agar bot restart otomatis jika crash
 
-## Update terbaru
-
-Jika `/search` timeout, update repo:
-
-```bash
-cd telegram-ai-agent
-git pull
-python bot.py
-```
-
-## Update dari v1 ke v2
+## Update
 
 ```bash
 cd telegram-ai-agent
@@ -60,7 +52,15 @@ DATABASE_PATH=data/memory.db
 MAX_HISTORY_MESSAGES=10
 ```
 
-## Jalankan 24 Jam di Termux
+Ambil ID kamu dengan command Telegram:
+
+```text
+/id
+```
+
+Lalu masukkan ke `ADMIN_USER_ID`.
+
+## Jalankan 24 Jam
 
 ```bash
 tmux new -s telegram-agent
@@ -83,22 +83,20 @@ tmux attach -t telegram-agent
 
 - `/start` - mulai bot
 - `/help` - bantuan
-- `/reset` - hapus memory kamu
+- `/reset` - hapus memory chat
 - `/status` - cek status bot
+- `/id` - lihat Telegram user ID
 - `/search berita AI terbaru` - cari info web
-- `/stats` - statistik khusus admin
+- `/calc 25000*3+10000` - kalkulator
+- `/note beli paket internet besok` - simpan catatan
+- `/notes` - lihat catatan
+- `/clearnotes` - hapus catatan
+- `/stats` - statistik admin
 
 ## Matikan bot
 
-Jika berjalan di tmux:
-
 ```bash
 tmux kill-session -t telegram-agent
-```
-
-Jika masih hidup:
-
-```bash
 pkill -f keep_alive.sh
 pkill -f bot.py
 ```
