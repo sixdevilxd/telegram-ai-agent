@@ -38,3 +38,21 @@ def clear_user_memory(user_id: int):
     cur.execute("DELETE FROM messages WHERE user_id = ?", (str(user_id),))
     conn.commit()
     conn.close()
+
+
+def count_users() -> int:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(DISTINCT user_id) FROM messages")
+    total = cur.fetchone()[0]
+    conn.close()
+    return total
+
+
+def count_messages() -> int:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM messages")
+    total = cur.fetchone()[0]
+    conn.close()
+    return total

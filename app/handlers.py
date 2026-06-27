@@ -1,11 +1,16 @@
+import logging
+
 from telegram import Update
 from telegram.ext import CommandHandler, MessageHandler, ContextTypes, filters
 
 from config import BOT_NAME
 from core.agent import Agent
-from services.memory_service import clear_user_memory
+from core.permissions import is_admin
+from services.memory_service import clear_user_memory, count_messages, count_users
 from services.telegram_service import send_long_message
+from tools.web_search import web_search
 
+logger = logging.getLogger(__name__)
 agent = Agent()
 
 
@@ -16,7 +21,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Command:\n"
         "/help - bantuan\n"
         "/reset - hapus memory percakapan\n"
-        "/status - cek status bot"
+        "/status - cek status bot\n"
+        "/search kata kunci - cari info web"
     )
     await update.message.reply_text(text)
 
@@ -27,7 +33,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/start - mulai bot\n"
         "/help - tampilkan bantuan\n"
         "/reset - reset memory chat kamu\n"
-        "/status - cek bot aktif\n\n"
+        "/status - cek bot aktif\n"
+        "/search kata kunci - web search sederhana\n\n"
+        "Admin only:\n"
+        "/stats - statistik user dan pesan\n\n"
         "Kamu bisa tanya coding, ide bisnis, riset, strategi, atau hal lain."
     )
     await update.message.reply_text(text)
@@ -43,16 +52,42 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"{BOT_NAME} aktif dan siap digunakan.")
 
 
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_admin(user_id):
+        await update.message.reply_text("Command ini khusus admin.")
+        return
+
+    text = (
+        "Statistik bot:\n"
+        f"- Total user: {count_users()}\n"
+        f"- Total pesan tersimpan: {count_messages()}"
+    )
+    await update.message.reply_text(text)
+
+
+async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = " ".join(context.args).strip()
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    result = web_search(query)
+    await send_long_message(update, result)
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_text = update.message.text
 
+    logger.info("Message from user_id=%s", user_id)
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
         reply = agent.respond(user_id=user_id, user_text=user_text)
-    except Exception as exc:
-        reply = f"Maaf, terjadi error: {exc}"
+    except Exception:
+        logger.exception("Failed to handle message from user_id=%s", user_id)
+        reply = (
+            "Maaf, terjadi gangguan saat memproses pesan. "
+            "Coba lagi sebentar lagi."
+        )
 
     await send_long_message(update, reply)
 
@@ -62,4 +97,6 @@ def register_handlers(app):
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CommandHandler("status", status))
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("search", search))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
