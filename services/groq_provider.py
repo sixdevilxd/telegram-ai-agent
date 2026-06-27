@@ -6,25 +6,56 @@ import time
 
 import httpx
 
-from config import GROQ_API_KEY, GROQ_MODEL, GROQ_VISION_MODEL
+from config import (
+    GROQ_API_KEY,
+    GROQ_MODEL,
+    GROQ_VISION_MODEL,
+    LLM_PROVIDER,
+    OPENROUTER_API_KEY,
+    OPENROUTER_MODEL,
+    OPENROUTER_VISION_MODEL,
+)
 
 
 class GroqProvider:
+    """Provider LLM yang mendukung Groq dan OpenRouter (keduanya OpenAI-compatible)."""
+
     def __init__(self):
-        if not GROQ_API_KEY:
-            raise RuntimeError("GROQ_API_KEY belum diisi di file .env")
-        self.api_key = GROQ_API_KEY
-        self.model = GROQ_MODEL
-        self.vision_model = GROQ_VISION_MODEL
-        self.url = "https://api.groq.com/openai/v1/chat/completions"
+        if LLM_PROVIDER == "openrouter":
+            if not OPENROUTER_API_KEY:
+                raise RuntimeError("OPENROUTER_API_KEY belum diisi di file .env")
+            self.provider = "openrouter"
+            self.api_key = OPENROUTER_API_KEY
+            self.model = OPENROUTER_MODEL
+            self.vision_model = OPENROUTER_VISION_MODEL or OPENROUTER_MODEL
+            self.url = "https://openrouter.ai/api/v1/chat/completions"
+            self.extra_headers = {
+                "HTTP-Referer": "https://github.com/sixdevilxd/telegram-ai-agent",
+                "X-Title": "Telegram AI Agent",
+            }
+            self._model_env = "OPENROUTER_MODEL"
+            self._key_env = "OPENROUTER_API_KEY"
+        else:
+            if not GROQ_API_KEY:
+                raise RuntimeError("GROQ_API_KEY belum diisi di file .env")
+            self.provider = "groq"
+            self.api_key = GROQ_API_KEY
+            self.model = GROQ_MODEL
+            self.vision_model = GROQ_VISION_MODEL
+            self.url = "https://api.groq.com/openai/v1/chat/completions"
+            self.extra_headers = {}
+            self._model_env = "GROQ_MODEL"
+            self._key_env = "GROQ_API_KEY"
 
     def _headers(self):
-        return {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        h = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        h.update(self.extra_headers)
+        return h
 
     def _post(self, payload, max_retries=3):
-        """POST ke Groq dengan retry + backoff untuk 429/5xx (hormati header Retry-After)."""
+        """POST dengan retry + backoff untuk 429/5xx (hormati header Retry-After)."""
         last = None
-        with httpx.Client(timeout=90) as client:
+        with httpx.Client(timeout=120) as client:
             for attempt in range(max_retries):
                 try:
                     response = client.post(self.url, headers=self._headers(), json=payload)
@@ -54,23 +85,26 @@ class GroqProvider:
 
         if last:
             raise last
-        raise RuntimeError("Groq request gagal tanpa detail.")
+        raise RuntimeError("Request LLM gagal tanpa detail.")
 
     def _friendly_error(self, exc) -> str:
         code = None
         if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
             code = exc.response.status_code
         if code == 429:
-            return "Bot lagi kena rate limit Groq (429). Tunggu ~1 menit lalu coba lagi ya."
-        if code == 401:
-            return "API key Groq tidak valid (401). Cek GROQ_API_KEY di file .env."
+            return "Bot lagi kena rate limit (429). Tunggu sebentar lalu coba lagi ya."
+        if code in (401, 403):
+            return f"API key tidak valid/ditolak ({code}). Cek {self._key_env} di file .env."
         if code in (404, 400):
             return (
-                "Model Groq bermasalah (mungkin nama model salah / sudah deprecated). "
-                "Cek GROQ_MODEL di .env, misalnya pakai: llama-3.3-70b-versatile."
+                f"Model bermasalah (nama salah / tidak tersedia). "
+                f"Cek {self._model_env} di .env. "
+                "Contoh OpenRouter: anthropic/claude-sonnet-4.5 ; contoh Groq: llama-3.3-70b-versatile."
             )
+        if code == 402:
+            return "Saldo OpenRouter habis (402). Top-up di openrouter.ai atau pakai model gratis."
         if isinstance(exc, httpx.RequestError):
-            return "Gagal terhubung ke Groq (jaringan/SSL). Coba lagi atau cek koneksi."
+            return "Gagal terhubung ke server AI (jaringan/SSL). Coba lagi atau cek koneksi."
         return "Maaf, layanan AI sedang bermasalah. Coba lagi sebentar."
 
     def chat(self, messages):
@@ -79,7 +113,6 @@ class GroqProvider:
             return self._post(payload)["choices"][0]["message"]["content"]
         except Exception as exc:
             return self._friendly_error(exc)
-
 
     def chat_raw(self, messages, tools=None, tool_choice="auto"):
         """Kirim pesan + daftar tools, kembalikan objek message penuh (termasuk tool_calls)."""
