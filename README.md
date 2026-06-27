@@ -2,18 +2,23 @@
 
 AI agent Telegram berbasis Python, Groq HTTP API, SQLite memory, dan siap jalan di Termux.
 
-## Fitur v3
+## Fitur v4
 
 - Chat AI via Telegram
-- Backend Groq tanpa package `groq`, aman untuk Termux
-- Memory percakapan per user pakai SQLite
-- `/search` web search sederhana
-- `/calc` kalkulator aman
-- `/note`, `/notes`, `/clearnotes` catatan pribadi
-- `/id` untuk ambil Telegram user ID
-- `/stats` khusus admin
+- Groq HTTP API tanpa package `groq`, aman untuk Termux
+- Memory percakapan per user
+- Auto tool routing tanpa command:
+  - `hitung 25000*3`
+  - `cari berita AI terbaru`
+  - `catat ide bisnis bot telegram`
+- File reader untuk `.txt`, `.md`, `.csv`, `.json`, `.py`, `.log`
+- Persona mode per user
+- Notes pribadi
+- Kalkulator aman
+- Web search sederhana
+- Admin stats
 - Logging ke `logs/bot.log`
-- Keep-alive script agar bot restart otomatis jika crash
+- Keep-alive script
 
 ## Update
 
@@ -25,19 +30,11 @@ chmod +x scripts/*.sh
 python bot.py
 ```
 
-## Install awal di Termux
+## Jalankan 24 Jam
 
 ```bash
-pkg update && pkg upgrade -y
-pkg install python git tmux -y
-
-git clone https://github.com/sixdevilxd/telegram-ai-agent.git
-cd telegram-ai-agent
-
-pip install -r requirements.txt
-cp .env.example .env
-nano .env
-python bot.py
+tmux new -s telegram-agent
+bash scripts/keep_alive.sh
 ```
 
 ## Isi `.env`
@@ -52,32 +49,7 @@ DATABASE_PATH=data/memory.db
 MAX_HISTORY_MESSAGES=10
 ```
 
-Ambil ID kamu dengan command Telegram:
-
-```text
-/id
-```
-
-Lalu masukkan ke `ADMIN_USER_ID`.
-
-## Jalankan 24 Jam
-
-```bash
-tmux new -s telegram-agent
-bash scripts/keep_alive.sh
-```
-
-Keluar tanpa mematikan bot:
-
-```text
-CTRL + B lalu D
-```
-
-Masuk lagi:
-
-```bash
-tmux attach -t telegram-agent
-```
+Ambil ID kamu dengan `/id`, lalu masukkan ke `ADMIN_USER_ID`.
 
 ## Command
 
@@ -91,7 +63,18 @@ tmux attach -t telegram-agent
 - `/note beli paket internet besok` - simpan catatan
 - `/notes` - lihat catatan
 - `/clearnotes` - hapus catatan
+- `/persona jawab seperti mentor bisnis` - set persona
+- `/persona` - lihat persona
+- `/clearpersona` - hapus persona
 - `/stats` - statistik admin
+
+## Contoh auto tool
+
+```text
+hitung 15000*4+2000
+cari update terbaru groq api
+catat ide konten: tutorial termux bot telegram
+```
 
 ## Matikan bot
 
@@ -101,6 +84,6 @@ pkill -f keep_alive.sh
 pkill -f bot.py
 ```
 
-## Catatan Keamanan
+## Keamanan
 
-Jangan pernah push file `.env` ke GitHub. Simpan token Telegram dan API key Groq hanya di `.env` lokal.
+Jangan pernah push `.env` ke GitHub.
