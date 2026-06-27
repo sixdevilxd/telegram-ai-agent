@@ -16,6 +16,7 @@ from services.persona_service import clear_persona, get_persona, set_persona
 from services.telegram_service import send_long_message
 from services.user_service import list_user_ids, list_users, upsert_user
 from tools.calculator import calculate
+from tools.chart_prompt import CHART_PROMPT, is_chart_request
 from tools.crypto_tool import coin_detail, dex_search, gmgn_link, new_pairs, price, token_info, trending
 from tools.gmgn_tool import gmgn_trending
 from tools.narrative_tool import build_narrative_context, narrative_prompt
@@ -28,6 +29,7 @@ from tools.web_search import web_search
 logger = logging.getLogger(__name__)
 agent = Agent()
 vision_ai = GroqProvider()
+_pending_chart = set()
 
 
 def track_user(update: Update):
@@ -47,7 +49,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
         f"{BOT_NAME} v9 aktif.\n\n"
-        "Fitur: chat AI, vision, social intelligence, crypto real-time, dan analisa narasi token.\n"
+        "Fitur: chat AI, vision, analisa chart gambar, social intelligence, crypto real-time, analisa narasi token.\n"
         "Ketik /help untuk command lengkap."
     )
 
@@ -65,13 +67,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/dex pepe - cari pair di DEX\n"
         "/gmgn <kontrak> - quick links gmgn/birdeye\n"
         "/gmgntrending sol - trending GMGN (butuh cookie)\n"
-        "/narasi pepe - analisa narasi token (AI)\n\n"
+        "/narasi pepe - analisa narasi token (AI)\n"
+        "/chart - lalu kirim screenshot chart untuk dianalisis\n\n"
         "AI & web:\n"
         "/asksearch topik, /search query\n"
         "/social platform query, /socialprompt platform topik, /platform nama\n"
         "/calc, /note, /notes, /clearnotes, /persona, /clearpersona\n"
         "/id, /status, /reset\n\n"
-        "Media: kirim foto/gambar atau file teks.\n\n"
+        "Media: kirim foto/gambar (caption 'analisa chart' untuk TA), atau file teks.\n\n"
         "Admin: /stats, /users, /broadcast, /shell, /sysinfo\n\n"
         "Auto: harga bitcoin, new pairs solana, analisa narasi pepe, cek token <kontrak>."
     )
@@ -82,7 +85,7 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    track_user(update); await update.message.reply_text(f"{BOT_NAME} v9 aktif: text + vision + social + crypto + narrative siap.")
+    track_user(update); await update.message.reply_text(f"{BOT_NAME} v9 aktif: text + vision + chart TA + social + crypto + narrative siap.")
 
 
 async def user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -190,6 +193,12 @@ async def cmd_narasi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await analyze_narrative(update, query)
 
 
+async def cmd_chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update)
+    _pending_chart.add(update.effective_user.id)
+    await update.message.reply_text("Kirim screenshot chart sekarang, akan saya analisis secara teknikal.")
+
+
 async def social(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     if len(context.args) < 2: return await update.message.reply_text("Contoh: /social reddit groq api")
@@ -238,12 +247,20 @@ async def clearpersona(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update); path = None; await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    uid = update.effective_user.id
+    caption = update.message.caption or ""
+    chart_mode = uid in _pending_chart or is_chart_request(caption)
     try:
         tg_file = await update.message.photo[-1].get_file()
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp: path = tmp.name
         await tg_file.download_to_drive(path)
-        prompt = update.message.caption or "Jelaskan isi gambar ini secara detail dalam bahasa Indonesia. Jika ada teks, baca teksnya."
-        reply = vision_ai.vision(path, prompt)
+        if chart_mode:
+            extra = f"\n\nCatatan tambahan dari user: {caption}" if caption else ""
+            reply = vision_ai.vision(path, CHART_PROMPT + extra)
+            _pending_chart.discard(uid)
+        else:
+            prompt = caption or "Jelaskan isi gambar ini secara detail dalam bahasa Indonesia. Jika ada teks, baca teksnya."
+            reply = vision_ai.vision(path, prompt)
     except Exception:
         logger.exception("Failed analyzing image"); reply = "Gagal membaca gambar. Cek GROQ_VISION_MODEL atau logs/bot.log."
     finally:
@@ -255,12 +272,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update); path = None; await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    uid = update.effective_user.id
+    caption = update.message.caption or ""
     try:
         doc = update.message.document; tg_file = await doc.get_file(); suffix = os.path.splitext(doc.file_name or "file.txt")[1].lower()
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp: path = tmp.name
         await tg_file.download_to_drive(path)
-        if suffix in [".jpg", ".jpeg", ".png", ".webp"]: reply = vision_ai.vision(path, "Analisis gambar ini dalam bahasa Indonesia. Baca teks jika ada.")
-        else: reply = agent.respond(update.effective_user.id, f"Ringkas file ini:\n\n{read_text_file(path)}")
+        if suffix in [".jpg", ".jpeg", ".png", ".webp"]:
+            if uid in _pending_chart or is_chart_request(caption):
+                reply = vision_ai.vision(path, CHART_PROMPT)
+                _pending_chart.discard(uid)
+            else:
+                reply = vision_ai.vision(path, "Analisis gambar ini dalam bahasa Indonesia. Baca teks jika ada.")
+        else:
+            reply = agent.respond(uid, f"Ringkas file ini:\n\n{read_text_file(path)}")
     except Exception:
         logger.exception("Failed reading document"); reply = "Gagal membaca file/gambar."
     finally:
@@ -293,7 +318,7 @@ def register_handlers(app):
         ("search", search), ("asksearch", asksearch),
         ("price", cmd_price), ("coin", cmd_coin), ("trending", cmd_trending), ("newpairs", cmd_newpairs),
         ("token", cmd_token), ("dex", cmd_dex), ("gmgn", cmd_gmgn), ("gmgntrending", cmd_gmgntrending),
-        ("narasi", cmd_narasi),
+        ("narasi", cmd_narasi), ("chart", cmd_chart),
         ("social", social), ("socialprompt", socialprompt), ("platform", platform),
         ("calc", calc), ("note", note), ("notes", notes), ("clearnotes", clearnotes),
         ("persona", persona), ("clearpersona", clearpersona),
