@@ -17,6 +17,7 @@ from services.telegram_service import send_long_message
 from services.user_service import list_user_ids, list_users, upsert_user
 from tools.calculator import calculate
 from tools.chart_prompt import CHART_PROMPT, is_chart_request
+from tools.chart_card import render_chart_card
 from tools.crypto_tool import coin_detail, dex_search, gmgn_link, new_pairs, price, token_info, trending
 from tools.gmgn_tool import gmgn_trending
 from tools.narrative_tool import build_narrative_context, narrative_prompt
@@ -50,6 +51,57 @@ def looks_like_signal(text: str) -> bool:
     return has_entry and (has_tp or has_sl) and (has_side or "leverage" in low or "x" in low)
 
 
+def _fmt_chart_text(data: dict) -> str:
+    sup = ", ".join(map(str, data.get("supports", []) or [])) or "-"
+    res = ", ".join(map(str, data.get("resistances", []) or [])) or "-"
+    return (
+        f"Analisa Chart: {data.get('asset','-')} ({data.get('timeframe','-')})\n\n"
+        f"Tren: {data.get('trend','-')}\n"
+        f"Bias: {str(data.get('bias','-')).upper()} | Confidence: {data.get('confidence','-')}\n\n"
+        f"Support: {sup}\n"
+        f"Resistance: {res}\n"
+        f"Pola: {data.get('pattern','-')}\n"
+        f"Indikator: {data.get('indicators','-')}\n\n"
+        f"Skenario Bullish: {data.get('bullish_scenario','-')}\n"
+        f"Skenario Bearish: {data.get('bearish_scenario','-')}\n\n"
+        f"Ringkasan: {data.get('summary','-')}\n\n"
+        "Ini analisis teknikal berbasis gambar, bukan saran finansial. DYOR."
+    )
+
+
+async def _send_chart_analysis(update, context, image_path, caption):
+    card_path = None
+    try:
+        data = vision_ai.vision_structured(image_path)
+        if not data or (len(data) == 1 and "summary" in data):
+            # Fallback ke analisa teks biasa jika JSON gagal.
+            extra = f"\n\nCatatan tambahan dari user: {caption}" if caption else ""
+            return await send_long_message(update, vision_ai.vision(image_path, CHART_PROMPT + extra))
+
+        text = _fmt_chart_text(data)
+        try:
+            card_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
+            rendered = render_chart_card(data, card_path)
+        except Exception:
+            rendered = None
+
+        if rendered and os.path.exists(rendered):
+            with open(rendered, "rb") as photo:
+                await context.bot.send_photo(
+                    chat_id=update.effective_chat.id,
+                    photo=photo,
+                    caption=f"Analisa chart {data.get('asset','')} {data.get('timeframe','')}".strip(),
+                )
+        await send_long_message(update, text)
+    except Exception:
+        logger.exception("Chart analysis failed")
+        await send_long_message(update, "Gagal menganalisis chart. Cek GROQ_VISION_MODEL atau logs/bot.log.")
+    finally:
+        if card_path and os.path.exists(card_path):
+            try: os.remove(card_path)
+            except Exception: pass
+
+
 async def analyze_narrative(update: Update, query: str):
     await update.message.reply_text(f"Menganalisis narasi token: {query} ...")
     context_data = build_narrative_context(query)
@@ -60,8 +112,8 @@ async def analyze_narrative(update: Update, query: str):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
-        f"{BOT_NAME} v10 aktif.\n\n"
-        "Fitur: chat AI, vision, analisa chart, social intelligence, crypto real-time, analisa narasi, dan signal analyzer.\n"
+        f"{BOT_NAME} v11 aktif.\n\n"
+        "Fitur: chat AI, vision, analisa chart (balas gambar + TA), social intelligence, crypto real-time, narasi token, signal analyzer.\n"
         "Ketik /help untuk command lengkap."
     )
 
@@ -69,22 +121,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
-        "Command v10:\n"
+        "Command v11:\n"
         "Crypto:\n"
         "/price bitcoin, /coin pepe, /trending\n"
         "/newpairs solana, /token <kontrak>, /dex pepe\n"
         "/gmgn <kontrak>, /gmgntrending sol\n"
         "/narasi pepe - analisa narasi token\n"
-        "/chart - lalu kirim screenshot chart\n"
-        "/signal - lalu paste sinyal trading untuk dinilai risikonya\n\n"
+        "/chart - lalu kirim screenshot chart (dibalas gambar kartu + TA)\n"
+        "/signal - lalu paste sinyal trading\n\n"
         "AI & web:\n"
         "/asksearch topik, /search query\n"
         "/social platform query, /socialprompt platform topik, /platform nama\n"
         "/calc, /note, /notes, /clearnotes, /persona, /clearpersona\n"
         "/id, /status, /reset\n\n"
-        "Media: kirim foto (caption 'analisa chart' untuk TA) atau file teks.\n\n"
+        "Media: kirim foto chart (caption 'analisa chart') atau file teks.\n\n"
         "Admin: /stats, /users, /broadcast, /shell, /sysinfo\n\n"
-        "Auto: harga bitcoin, new pairs solana, analisa narasi pepe, atau paste sinyal trading langsung."
+        "Auto: harga bitcoin, new pairs solana, analisa narasi pepe, atau paste sinyal trading."
     )
 
 
@@ -93,7 +145,7 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    track_user(update); await update.message.reply_text(f"{BOT_NAME} v10 aktif: text + vision + chart + social + crypto + narrative + signal siap.")
+    track_user(update); await update.message.reply_text(f"{BOT_NAME} v11 aktif: text + vision + chart-card + social + crypto + narrative + signal.")
 
 
 async def user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -204,7 +256,7 @@ async def cmd_narasi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     _pending_chart.add(update.effective_user.id)
-    await update.message.reply_text("Kirim screenshot chart sekarang, akan saya analisis secara teknikal.")
+    await update.message.reply_text("Kirim screenshot chart sekarang. Saya balas dengan gambar kartu analisis + teknik analisa lengkap.")
 
 
 async def cmd_signal(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -271,12 +323,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp: path = tmp.name
         await tg_file.download_to_drive(path)
         if chart_mode:
-            extra = f"\n\nCatatan tambahan dari user: {caption}" if caption else ""
-            reply = vision_ai.vision(path, CHART_PROMPT + extra)
             _pending_chart.discard(uid)
-        else:
-            prompt = caption or "Jelaskan isi gambar ini secara detail dalam bahasa Indonesia. Jika ada teks, baca teksnya."
-            reply = vision_ai.vision(path, prompt)
+            await _send_chart_analysis(update, context, path, caption)
+            return
+        prompt = caption or "Jelaskan isi gambar ini secara detail dalam bahasa Indonesia. Jika ada teks, baca teksnya."
+        reply = vision_ai.vision(path, prompt)
     except Exception:
         logger.exception("Failed analyzing image"); reply = "Gagal membaca gambar. Cek GROQ_VISION_MODEL atau logs/bot.log."
     finally:
@@ -296,10 +347,10 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await tg_file.download_to_drive(path)
         if suffix in [".jpg", ".jpeg", ".png", ".webp"]:
             if uid in _pending_chart or is_chart_request(caption):
-                reply = vision_ai.vision(path, CHART_PROMPT)
                 _pending_chart.discard(uid)
-            else:
-                reply = vision_ai.vision(path, "Analisis gambar ini dalam bahasa Indonesia. Baca teks jika ada.")
+                await _send_chart_analysis(update, context, path, caption)
+                return
+            reply = vision_ai.vision(path, "Analisis gambar ini dalam bahasa Indonesia. Baca teks jika ada.")
         else:
             reply = agent.respond(uid, f"Ringkas file ini:\n\n{read_text_file(path)}")
     except Exception:
