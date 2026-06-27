@@ -80,6 +80,15 @@ class GroqProvider:
         except Exception as exc:
             return self._friendly_error(exc)
 
+
+    def chat_raw(self, messages, tools=None, tool_choice="auto"):
+        """Kirim pesan + daftar tools, kembalikan objek message penuh (termasuk tool_calls)."""
+        payload = {"model": self.model, "messages": messages, "temperature": 0.7, "max_tokens": 1024}
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = tool_choice
+        return self._post(payload)["choices"][0]["message"]
+
     def _image_payload_content(self, image_path, prompt):
         mime_type = mimetypes.guess_type(image_path)[0] or "image/jpeg"
         with open(image_path, "rb") as f:
