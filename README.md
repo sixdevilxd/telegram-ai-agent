@@ -13,6 +13,16 @@ AI agent Telegram berbasis Python, Groq HTTP API, SQLite memory, dan siap jalan 
 - Logging ke `logs/bot.log`
 - Keep-alive script agar bot restart otomatis jika crash
 
+## Update terbaru
+
+Jika `/search` timeout, update repo:
+
+```bash
+cd telegram-ai-agent
+git pull
+python bot.py
+```
+
 ## Update dari v1 ke v2
 
 ```bash
@@ -77,6 +87,21 @@ tmux attach -t telegram-agent
 - `/status` - cek status bot
 - `/search berita AI terbaru` - cari info web
 - `/stats` - statistik khusus admin
+
+## Matikan bot
+
+Jika berjalan di tmux:
+
+```bash
+tmux kill-session -t telegram-agent
+```
+
+Jika masih hidup:
+
+```bash
+pkill -f keep_alive.sh
+pkill -f bot.py
+```
 
 ## Catatan Keamanan
 
