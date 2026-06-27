@@ -1,39 +1,25 @@
 # Telegram AI Agent with Groq
 
-AI agent Telegram berbasis Python, Groq HTTP API, SQLite memory, dan siap jalan di Termux.
+AI agent Telegram berbasis Python, Groq HTTP API, SQLite memory, Termux, vision, dan social intelligence.
 
-## Fitur v6 Vision
+## Fitur v7 Social Intelligence
 
-- Chat AI via Telegram
-- Bisa baca/analis gambar dari foto Telegram
-- Bisa baca gambar sebagai document `.jpg`, `.jpeg`, `.png`, `.webp`
-- Auto tool routing: `hitung`, `cari`, `catat`
-- `/asksearch` = web search lalu diringkas AI
-- File reader untuk `.txt`, `.md`, `.csv`, `.json`, `.py`, `.log`
-- Persona mode per user
-- Notes pribadi
+- Mengenal platform: X/Twitter, LinkedIn, Reddit, Facebook, Instagram, TikTok, YouTube
+- `/social platform query` untuk membuat link pencarian sosial
+- `/socialprompt platform topik` untuk membuat konten siap posting
+- `/platform nama` untuk panduan strategi tiap platform
+- Auto routing: `cari di reddit groq api`, `cari di linkedin ai agent`
+- Vision: baca/analis gambar Telegram
+- File reader: `.txt`, `.md`, `.csv`, `.json`, `.py`, `.log`
 - Admin tools: `/stats`, `/users`, `/broadcast`, `/shell`, `/sysinfo`
-- SQLite user tracking
-- Logging dan keep-alive
 
-## Update ke v6
+## Update ke v7
 
 ```bash
 cd telegram-ai-agent
 git pull
 pip install -r requirements.txt
 chmod +x scripts/*.sh
-```
-
-Edit `.env`, tambahkan model vision:
-
-```env
-GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
-```
-
-Jalankan:
-
-```bash
 python bot.py
 ```
 
@@ -45,7 +31,19 @@ tmux new -s telegram-agent
 bash scripts/keep_alive.sh
 ```
 
-## `.env` lengkap
+## Contoh Sosmed
+
+```text
+/social reddit groq api
+/social linkedin ai agent untuk bisnis
+/social twitter openai groq comparison
+/socialprompt linkedin AI agent untuk UMKM
+/socialprompt reddit pengalaman pakai Termux bot
+/platform linkedin
+/platform reddit
+```
+
+## `.env`
 
 ```env
 TELEGRAM_BOT_TOKEN=token_dari_botfather
@@ -56,20 +54,6 @@ BOT_NAME=Keen Telegram Agent
 ADMIN_USER_ID=id_telegram_kamu
 DATABASE_PATH=data/memory.db
 MAX_HISTORY_MESSAGES=10
-```
-
-## Cara pakai gambar
-
-- Kirim foto langsung ke bot
-- Bisa pakai caption sebagai instruksi, contoh: `apa isi screenshot ini?`
-- Bot akan membaca objek dan teks yang ada di gambar
-
-## Matikan bot
-
-```bash
-tmux kill-session -t telegram-agent
-pkill -f keep_alive.sh
-pkill -f bot.py
 ```
 
 Jangan pernah push `.env` ke GitHub.
