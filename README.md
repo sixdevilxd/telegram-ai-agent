@@ -1,11 +1,11 @@
 # Telegram AI Agent with Groq
 
-AI agent Telegram berbasis Python, Groq, SQLite memory, dan siap jalan di Termux.
+AI agent Telegram berbasis Python, Groq HTTP API, SQLite memory, dan siap jalan di Termux.
 
 ## Fitur
 
 - Chat AI via Telegram
-- Backend LLM Groq
+- Backend LLM Groq tanpa package `groq`, jadi lebih aman untuk Termux
 - Memory percakapan per user pakai SQLite
 - Command `/start`, `/help`, `/reset`, `/status`
 - Siap deploy di Termux
@@ -23,6 +23,18 @@ cd telegram-ai-agent
 pip install -r requirements.txt
 cp .env.example .env
 nano .env
+python bot.py
+```
+
+## Kalau sebelumnya install gagal di package groq
+
+Update repo dan install ulang:
+
+```bash
+cd telegram-ai-agent
+git pull
+pip uninstall groq pydantic pydantic-core -y
+pip install -r requirements.txt
 python bot.py
 ```
 
@@ -54,21 +66,6 @@ Masuk lagi:
 
 ```bash
 tmux attach -t telegram-agent
-```
-
-## Struktur
-
-```text
-telegram-ai-agent/
-├── bot.py
-├── config.py
-├── app/
-├── core/
-├── services/
-├── storage/
-├── data/
-├── logs/
-└── scripts/
 ```
 
 ## Catatan Keamanan
