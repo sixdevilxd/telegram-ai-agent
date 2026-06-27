@@ -21,7 +21,7 @@ OPENROUTER_VISION_MODEL = os.getenv("OPENROUTER_VISION_MODEL", "")
 # --- Agentrouter (OpenAI-compatible) ---
 AGENTROUTER_API_KEY = os.getenv("AGENTROUTER_API_KEY", "")
 AGENTROUTER_BASE_URL = os.getenv("AGENTROUTER_BASE_URL", "https://agentrouter.org/v1/chat/completions")
-AGENTROUTER_MODEL = os.getenv("AGENTROUTER_MODEL", "anthropic/claude-opus-4.8")
+AGENTROUTER_MODEL = os.getenv("AGENTROUTER_MODEL", "claude-opus-4-8")
 
 
 BOT_NAME = os.getenv("BOT_NAME", "Keen Telegram Agent")
