@@ -20,6 +20,7 @@ from tools.chart_prompt import CHART_PROMPT, is_chart_request
 from tools.crypto_tool import coin_detail, dex_search, gmgn_link, new_pairs, price, token_info, trending
 from tools.gmgn_tool import gmgn_trending
 from tools.narrative_tool import build_narrative_context, narrative_prompt
+from tools.signal_tool import analyze_signal
 from tools.file_reader import read_text_file
 from tools.shell_tool import run_shell
 from tools.social_search import platform_guide, social_prompt, social_search
@@ -38,6 +39,17 @@ def track_user(update: Update):
         upsert_user(u.id, u.username or "", u.first_name or "")
 
 
+def looks_like_signal(text: str) -> bool:
+    if not text:
+        return False
+    low = text.lower()
+    has_entry = "entry" in low
+    has_tp = "tp" in low or "target" in low
+    has_sl = re.search(r"\bsl\b|stop", low) is not None
+    has_side = "long" in low or "short" in low
+    return has_entry and (has_tp or has_sl) and (has_side or "leverage" in low or "x" in low)
+
+
 async def analyze_narrative(update: Update, query: str):
     await update.message.reply_text(f"Menganalisis narasi token: {query} ...")
     context_data = build_narrative_context(query)
@@ -48,8 +60,8 @@ async def analyze_narrative(update: Update, query: str):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
-        f"{BOT_NAME} v9 aktif.\n\n"
-        "Fitur: chat AI, vision, analisa chart gambar, social intelligence, crypto real-time, analisa narasi token.\n"
+        f"{BOT_NAME} v10 aktif.\n\n"
+        "Fitur: chat AI, vision, analisa chart, social intelligence, crypto real-time, analisa narasi, dan signal analyzer.\n"
         "Ketik /help untuk command lengkap."
     )
 
@@ -57,26 +69,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
-        "Command v9:\n"
+        "Command v10:\n"
         "Crypto:\n"
-        "/price bitcoin - harga & market\n"
-        "/coin pepe - detail koin\n"
-        "/trending - koin trending CoinGecko\n"
-        "/newpairs solana - new pairs/launch (DexScreener)\n"
-        "/token <kontrak> - info token DEX\n"
-        "/dex pepe - cari pair di DEX\n"
-        "/gmgn <kontrak> - quick links gmgn/birdeye\n"
-        "/gmgntrending sol - trending GMGN (butuh cookie)\n"
-        "/narasi pepe - analisa narasi token (AI)\n"
-        "/chart - lalu kirim screenshot chart untuk dianalisis\n\n"
+        "/price bitcoin, /coin pepe, /trending\n"
+        "/newpairs solana, /token <kontrak>, /dex pepe\n"
+        "/gmgn <kontrak>, /gmgntrending sol\n"
+        "/narasi pepe - analisa narasi token\n"
+        "/chart - lalu kirim screenshot chart\n"
+        "/signal - lalu paste sinyal trading untuk dinilai risikonya\n\n"
         "AI & web:\n"
         "/asksearch topik, /search query\n"
         "/social platform query, /socialprompt platform topik, /platform nama\n"
         "/calc, /note, /notes, /clearnotes, /persona, /clearpersona\n"
         "/id, /status, /reset\n\n"
-        "Media: kirim foto/gambar (caption 'analisa chart' untuk TA), atau file teks.\n\n"
+        "Media: kirim foto (caption 'analisa chart' untuk TA) atau file teks.\n\n"
         "Admin: /stats, /users, /broadcast, /shell, /sysinfo\n\n"
-        "Auto: harga bitcoin, new pairs solana, analisa narasi pepe, cek token <kontrak>."
+        "Auto: harga bitcoin, new pairs solana, analisa narasi pepe, atau paste sinyal trading langsung."
     )
 
 
@@ -85,7 +93,7 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    track_user(update); await update.message.reply_text(f"{BOT_NAME} v9 aktif: text + vision + chart TA + social + crypto + narrative siap.")
+    track_user(update); await update.message.reply_text(f"{BOT_NAME} v10 aktif: text + vision + chart + social + crypto + narrative + signal siap.")
 
 
 async def user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -199,6 +207,14 @@ async def cmd_chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Kirim screenshot chart sekarang, akan saya analisis secara teknikal.")
 
 
+async def cmd_signal(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update)
+    text = update.message.text.partition(" ")[2].strip() if update.message.text else ""
+    if not text:
+        return await update.message.reply_text("Paste sinyal setelah /signal, atau langsung paste sinyal trading ke chat.")
+    await send_long_message(update, analyze_signal(text))
+
+
 async def social(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     if len(context.args) < 2: return await update.message.reply_text("Contoh: /social reddit groq api")
@@ -300,6 +316,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text or ""
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
+    if looks_like_signal(text):
+        return await send_long_message(update, analyze_signal(text))
+
     narasi_match = re.search(r"(?:analisa|analisis)?\s*narasi(?:\s+token)?\s+(.+)", text, flags=re.I)
     if narasi_match:
         return await analyze_narrative(update, narasi_match.group(1).strip())
@@ -318,7 +337,7 @@ def register_handlers(app):
         ("search", search), ("asksearch", asksearch),
         ("price", cmd_price), ("coin", cmd_coin), ("trending", cmd_trending), ("newpairs", cmd_newpairs),
         ("token", cmd_token), ("dex", cmd_dex), ("gmgn", cmd_gmgn), ("gmgntrending", cmd_gmgntrending),
-        ("narasi", cmd_narasi), ("chart", cmd_chart),
+        ("narasi", cmd_narasi), ("chart", cmd_chart), ("signal", cmd_signal),
         ("social", social), ("socialprompt", socialprompt), ("platform", platform),
         ("calc", calc), ("note", note), ("notes", notes), ("clearnotes", clearnotes),
         ("persona", persona), ("clearpersona", clearpersona),
