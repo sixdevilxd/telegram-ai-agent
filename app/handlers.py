@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import tempfile
 
 from telegram import Update
@@ -17,6 +18,7 @@ from services.user_service import list_user_ids, list_users, upsert_user
 from tools.calculator import calculate
 from tools.crypto_tool import coin_detail, dex_search, gmgn_link, new_pairs, price, token_info, trending
 from tools.gmgn_tool import gmgn_trending
+from tools.narrative_tool import build_narrative_context, narrative_prompt
 from tools.file_reader import read_text_file
 from tools.shell_tool import run_shell
 from tools.social_search import platform_guide, social_prompt, social_search
@@ -34,11 +36,18 @@ def track_user(update: Update):
         upsert_user(u.id, u.username or "", u.first_name or "")
 
 
+async def analyze_narrative(update: Update, query: str):
+    await update.message.reply_text(f"Menganalisis narasi token: {query} ...")
+    context_data = build_narrative_context(query)
+    reply = agent.respond(update.effective_user.id, narrative_prompt(query, context_data))
+    await send_long_message(update, reply)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
-        f"{BOT_NAME} v8 aktif.\n\n"
-        "Fitur: chat AI, vision, social intelligence, crypto real-time (CoinGecko + DexScreener + GMGN).\n"
+        f"{BOT_NAME} v9 aktif.\n\n"
+        "Fitur: chat AI, vision, social intelligence, crypto real-time, dan analisa narasi token.\n"
         "Ketik /help untuk command lengkap."
     )
 
@@ -46,7 +55,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
-        "Command v8:\n"
+        "Command v9:\n"
         "Crypto:\n"
         "/price bitcoin - harga & market\n"
         "/coin pepe - detail koin\n"
@@ -55,7 +64,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/token <kontrak> - info token DEX\n"
         "/dex pepe - cari pair di DEX\n"
         "/gmgn <kontrak> - quick links gmgn/birdeye\n"
-        "/gmgntrending sol - trending GMGN (butuh cookie)\n\n"
+        "/gmgntrending sol - trending GMGN (butuh cookie)\n"
+        "/narasi pepe - analisa narasi token (AI)\n\n"
         "AI & web:\n"
         "/asksearch topik, /search query\n"
         "/social platform query, /socialprompt platform topik, /platform nama\n"
@@ -63,7 +73,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/id, /status, /reset\n\n"
         "Media: kirim foto/gambar atau file teks.\n\n"
         "Admin: /stats, /users, /broadcast, /shell, /sysinfo\n\n"
-        "Auto: harga bitcoin, new pairs solana, cek token <kontrak>, cari di reddit groq."
+        "Auto: harga bitcoin, new pairs solana, analisa narasi pepe, cek token <kontrak>."
     )
 
 
@@ -72,7 +82,7 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    track_user(update); await update.message.reply_text(f"{BOT_NAME} v8 aktif: text + vision + social + crypto siap.")
+    track_user(update); await update.message.reply_text(f"{BOT_NAME} v9 aktif: text + vision + social + crypto + narrative siap.")
 
 
 async def user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -171,6 +181,15 @@ async def cmd_gmgntrending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_long_message(update, gmgn_trending(chain))
 
 
+async def cmd_narasi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update)
+    query = " ".join(context.args).strip()
+    if not query:
+        return await update.message.reply_text("Contoh: /narasi pepe atau /narasi <alamat_kontrak>")
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    await analyze_narrative(update, query)
+
+
 async def social(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     if len(context.args) < 2: return await update.message.reply_text("Contoh: /social reddit groq api")
@@ -252,8 +271,16 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    track_user(update); await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    try: reply = agent.respond(update.effective_user.id, update.message.text)
+    track_user(update)
+    text = update.message.text or ""
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+
+    narasi_match = re.search(r"(?:analisa|analisis)?\s*narasi(?:\s+token)?\s+(.+)", text, flags=re.I)
+    if narasi_match:
+        return await analyze_narrative(update, narasi_match.group(1).strip())
+
+    try:
+        reply = agent.respond(update.effective_user.id, text)
     except Exception:
         logger.exception("Failed to handle message"); reply = "Maaf, terjadi gangguan. Cek logs/bot.log."
     await send_long_message(update, reply)
@@ -266,6 +293,7 @@ def register_handlers(app):
         ("search", search), ("asksearch", asksearch),
         ("price", cmd_price), ("coin", cmd_coin), ("trending", cmd_trending), ("newpairs", cmd_newpairs),
         ("token", cmd_token), ("dex", cmd_dex), ("gmgn", cmd_gmgn), ("gmgntrending", cmd_gmgntrending),
+        ("narasi", cmd_narasi),
         ("social", social), ("socialprompt", socialprompt), ("platform", platform),
         ("calc", calc), ("note", note), ("notes", notes), ("clearnotes", clearnotes),
         ("persona", persona), ("clearpersona", clearpersona),

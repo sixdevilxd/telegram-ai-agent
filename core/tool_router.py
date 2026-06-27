@@ -16,8 +16,10 @@ def route_tool(user_id: int, text: str):
         if re.fullmatch(r"[0-9\s+\-*/().%]+", expr):
             return calculate(expr.replace("%", "/100"))
 
+    # Narrative routing handled in handlers/agent (needs AI), so we skip it here.
+
     price_match = re.search(r"(?:harga|price)\s+([a-z0-9 ]+)", lower)
-    if price_match:
+    if price_match and "narasi" not in lower:
         return price(price_match.group(1))
 
     np_match = re.search(r"new\s*pairs?\s*([a-z]*)", lower)
