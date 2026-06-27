@@ -6,7 +6,12 @@ from config import DATABASE_PATH
 
 def get_connection():
     os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
-    return sqlite3.connect(DATABASE_PATH)
+    # timeout: tunggu hingga 15 detik jika DB sedang terkunci (umum di HP/Termux yang lambat).
+    conn = sqlite3.connect(DATABASE_PATH, timeout=15.0)
+    # WAL: izinkan baca & tulis bersamaan sehingga mengurangi error "database is locked".
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=15000;")
+    return conn
 
 
 def init_db():
