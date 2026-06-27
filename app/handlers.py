@@ -8,6 +8,7 @@ from telegram.ext import CommandHandler, MessageHandler, ContextTypes, filters
 from config import BOT_NAME
 from core.agent import Agent
 from core.permissions import is_admin
+from services.groq_provider import GroqProvider
 from services.memory_service import clear_user_memory, count_messages, count_users
 from services.note_service import add_note, clear_notes, count_notes, list_notes
 from services.persona_service import clear_persona, get_persona, set_persona
@@ -21,6 +22,7 @@ from tools.web_search import web_search
 
 logger = logging.getLogger(__name__)
 agent = Agent()
+vision_ai = GroqProvider()
 
 
 def track_user(update: Update):
@@ -32,22 +34,25 @@ def track_user(update: Update):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
-        f"{BOT_NAME} v5 aktif.\n\n"
-        "Power features: auto tools, file reader, persona, ask-search, admin shell, broadcast.\n"
-        "Ketik /help untuk command lengkap."
+        f"{BOT_NAME} v6 aktif.\n\n"
+        "Power features: chat AI, baca gambar, file reader, ask-search, admin shell, broadcast.\n"
+        "Kirim foto langsung untuk dianalisis. Ketik /help untuk command lengkap."
     )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
-        "Command v5:\n"
+        "Command v6:\n"
         "/asksearch topik - search lalu diringkas AI\n"
         "/search kata kunci - web search\n"
         "/calc ekspresi - kalkulator\n"
         "/note teks, /notes, /clearnotes\n"
         "/persona gaya, /clearpersona\n"
         "/id, /status, /reset\n\n"
+        "Media:\n"
+        "- Kirim foto/gambar untuk dianalisis AI\n"
+        "- Kirim file .txt/.md/.csv/.json/.py/.log untuk diringkas\n\n"
         "Admin:\n"
         "/stats, /users, /broadcast pesan, /shell command, /sysinfo\n\n"
         "Auto: hitung 10*5, cari berita AI, catat ide baru."
@@ -62,7 +67,7 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
-    await update.message.reply_text(f"{BOT_NAME} v5 aktif dan siap.")
+    await update.message.reply_text(f"{BOT_NAME} v6 aktif: text + vision + tools siap.")
 
 
 async def user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -195,6 +200,30 @@ async def clearpersona(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Persona dihapus.")
 
 
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update)
+    path = None
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    try:
+        photo = update.message.photo[-1]
+        tg_file = await photo.get_file()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+            path = tmp.name
+        await tg_file.download_to_drive(path)
+
+        caption = update.message.caption or ""
+        prompt = caption.strip() or "Jelaskan isi gambar ini secara detail dalam bahasa Indonesia. Jika ada teks, baca teksnya. Jika ada objek penting, jelaskan."
+        reply = vision_ai.vision(path, prompt)
+    except Exception:
+        logger.exception("Failed analyzing image")
+        reply = "Gagal membaca gambar. Cek GROQ_VISION_MODEL atau logs/bot.log."
+    finally:
+        if path:
+            try: os.remove(path)
+            except Exception: pass
+    await send_long_message(update, reply)
+
+
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     path = None
@@ -202,15 +231,19 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         doc = update.message.document
         tg_file = await doc.get_file()
-        suffix = os.path.splitext(doc.file_name or "file.txt")[1]
+        suffix = os.path.splitext(doc.file_name or "file.txt")[1].lower()
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             path = tmp.name
         await tg_file.download_to_drive(path)
-        content = read_text_file(path)
-        reply = agent.respond(update.effective_user.id, f"Ringkas file ini:\n\n{content}")
+
+        if suffix in [".jpg", ".jpeg", ".png", ".webp"]:
+            reply = vision_ai.vision(path, "Analisis gambar ini dalam bahasa Indonesia. Baca teks jika ada.")
+        else:
+            content = read_text_file(path)
+            reply = agent.respond(update.effective_user.id, f"Ringkas file ini:\n\n{content}")
     except Exception:
         logger.exception("Failed reading document")
-        reply = "Gagal membaca file."
+        reply = "Gagal membaca file/gambar."
     finally:
         if path:
             try: os.remove(path)
@@ -238,5 +271,6 @@ def register_handlers(app):
         ("persona", persona), ("clearpersona", clearpersona),
     ]:
         app.add_handler(CommandHandler(name, func))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
