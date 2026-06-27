@@ -44,7 +44,11 @@ class GroqProvider:
             else:
                 self.url = base_url
 
-            self.extra_headers = {}
+            self.extra_headers = {
+                "User-Agent": "Claude-Code/0.1.0 (linux; x64)",
+                "HTTP-Referer": "https://github.com/sixdevilxd/telegram-ai-agent",
+                "X-Title": "Telegram AI Agent",
+            }
             self._model_env = "AGENTROUTER_MODEL"
             self._key_env = "AGENTROUTER_API_KEY"
         elif LLM_PROVIDER == "openrouter":
