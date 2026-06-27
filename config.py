@@ -5,7 +5,7 @@ load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
-# Provider LLM: "groq" (default) atau "openrouter"
+# Provider LLM: "groq" (default), "openrouter", atau "agentrouter"
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq").strip().lower()
 
 # --- Groq ---
@@ -17,6 +17,12 @@ GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-sonnet-4.5")
 OPENROUTER_VISION_MODEL = os.getenv("OPENROUTER_VISION_MODEL", "")
+
+# --- Agentrouter (OpenAI-compatible) ---
+AGENTROUTER_API_KEY = os.getenv("AGENTROUTER_API_KEY", "")
+AGENTROUTER_BASE_URL = os.getenv("AGENTROUTER_BASE_URL", "https://agentrouter.org/v1/chat/completions")
+AGENTROUTER_MODEL = os.getenv("AGENTROUTER_MODEL", "anthropic/claude-opus-4.8")
+
 
 BOT_NAME = os.getenv("BOT_NAME", "Keen Telegram Agent")
 ADMIN_USER_ID = os.getenv("ADMIN_USER_ID", "")

@@ -14,6 +14,9 @@ from config import (
     OPENROUTER_API_KEY,
     OPENROUTER_MODEL,
     OPENROUTER_VISION_MODEL,
+    AGENTROUTER_API_KEY,
+    AGENTROUTER_BASE_URL,
+    AGENTROUTER_MODEL,
 )
 
 
@@ -21,7 +24,18 @@ class GroqProvider:
     """Provider LLM yang mendukung Groq dan OpenRouter (keduanya OpenAI-compatible)."""
 
     def __init__(self):
-        if LLM_PROVIDER == "openrouter":
+        if LLM_PROVIDER == "agentrouter":
+            if not AGENTROUTER_API_KEY:
+                raise RuntimeError("AGENTROUTER_API_KEY belum diisi di file .env")
+            self.provider = "agentrouter"
+            self.api_key = AGENTROUTER_API_KEY
+            self.model = AGENTROUTER_MODEL
+            self.vision_model = AGENTROUTER_MODEL
+            self.url = AGENTROUTER_BASE_URL
+            self.extra_headers = {}
+            self._model_env = "AGENTROUTER_MODEL"
+            self._key_env = "AGENTROUTER_API_KEY"
+        elif LLM_PROVIDER == "openrouter":
             if not OPENROUTER_API_KEY:
                 raise RuntimeError("OPENROUTER_API_KEY belum diisi di file .env")
             self.provider = "openrouter"
