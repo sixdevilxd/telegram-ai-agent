@@ -16,6 +16,7 @@ from services.telegram_service import send_long_message
 from services.user_service import list_user_ids, list_users, upsert_user
 from tools.calculator import calculate
 from tools.crypto_tool import coin_detail, dex_search, gmgn_link, new_pairs, price, token_info, trending
+from tools.gmgn_tool import gmgn_trending
 from tools.file_reader import read_text_file
 from tools.shell_tool import run_shell
 from tools.social_search import platform_guide, social_prompt, social_search
@@ -37,7 +38,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     await update.message.reply_text(
         f"{BOT_NAME} v8 aktif.\n\n"
-        "Fitur: chat AI, vision, social intelligence, dan crypto real-time (CoinGecko + DexScreener).\n"
+        "Fitur: chat AI, vision, social intelligence, crypto real-time (CoinGecko + DexScreener + GMGN).\n"
         "Ketik /help untuk command lengkap."
     )
 
@@ -49,11 +50,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Crypto:\n"
         "/price bitcoin - harga & market\n"
         "/coin pepe - detail koin\n"
-        "/trending - koin trending\n"
-        "/newpairs solana - new pairs/launch\n"
+        "/trending - koin trending CoinGecko\n"
+        "/newpairs solana - new pairs/launch (DexScreener)\n"
         "/token <kontrak> - info token DEX\n"
         "/dex pepe - cari pair di DEX\n"
-        "/gmgn <kontrak> - quick links gmgn/birdeye\n\n"
+        "/gmgn <kontrak> - quick links gmgn/birdeye\n"
+        "/gmgntrending sol - trending GMGN (butuh cookie)\n\n"
         "AI & web:\n"
         "/asksearch topik, /search query\n"
         "/social platform query, /socialprompt platform topik, /platform nama\n"
@@ -163,6 +165,12 @@ async def cmd_gmgn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update); await update.message.reply_text(gmgn_link(" ".join(context.args)))
 
 
+async def cmd_gmgntrending(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    track_user(update); await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    chain = context.args[0] if context.args else "sol"
+    await send_long_message(update, gmgn_trending(chain))
+
+
 async def social(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_user(update)
     if len(context.args) < 2: return await update.message.reply_text("Contoh: /social reddit groq api")
@@ -257,7 +265,7 @@ def register_handlers(app):
         ("stats", stats), ("users", users), ("broadcast", broadcast), ("shell", shell), ("sysinfo", sysinfo),
         ("search", search), ("asksearch", asksearch),
         ("price", cmd_price), ("coin", cmd_coin), ("trending", cmd_trending), ("newpairs", cmd_newpairs),
-        ("token", cmd_token), ("dex", cmd_dex), ("gmgn", cmd_gmgn),
+        ("token", cmd_token), ("dex", cmd_dex), ("gmgn", cmd_gmgn), ("gmgntrending", cmd_gmgntrending),
         ("social", social), ("socialprompt", socialprompt), ("platform", platform),
         ("calc", calc), ("note", note), ("notes", notes), ("clearnotes", clearnotes),
         ("persona", persona), ("clearpersona", clearpersona),
