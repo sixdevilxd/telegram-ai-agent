@@ -31,12 +31,20 @@ class GroqProvider:
             self.api_key = AGENTROUTER_API_KEY
             self.model = AGENTROUTER_MODEL
             self.vision_model = AGENTROUTER_MODEL
-            self.url = AGENTROUTER_BASE_URL
-            self.extra_headers = {
-                "User-Agent": "Claude-Code/0.1.0 (linux; x64)",
-                "HTTP-Referer": "https://github.com/sixdevilxd/telegram-ai-agent",
-                "X-Title": "Telegram AI Agent",
-            }
+
+            # Formating URL agar selalu menunjuk ke endpoint chat completions yang benar
+            base_url = AGENTROUTER_BASE_URL.strip().rstrip("/")
+            if not base_url.endswith("/chat/completions"):
+                if base_url.endswith("/v1"):
+                    self.url = f"{base_url}/chat/completions"
+                elif base_url.endswith("/v1/chat"):
+                    self.url = f"{base_url}/completions"
+                else:
+                    self.url = f"{base_url}/v1/chat/completions" if "v1" not in base_url else f"{base_url}/chat/completions"
+            else:
+                self.url = base_url
+
+            self.extra_headers = {}
             self._model_env = "AGENTROUTER_MODEL"
             self._key_env = "AGENTROUTER_API_KEY"
         elif LLM_PROVIDER == "openrouter":
