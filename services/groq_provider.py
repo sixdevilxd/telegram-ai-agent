@@ -2,6 +2,7 @@ import base64
 import json
 import mimetypes
 import re
+import time
 
 import httpx
 
@@ -20,15 +21,64 @@ class GroqProvider:
     def _headers(self):
         return {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
 
-    def _post(self, payload):
+    def _post(self, payload, max_retries=3):
+        """POST ke Groq dengan retry + backoff untuk 429/5xx (hormati header Retry-After)."""
+        last = None
         with httpx.Client(timeout=90) as client:
-            response = client.post(self.url, headers=self._headers(), json=payload)
-            response.raise_for_status()
-            return response.json()
+            for attempt in range(max_retries):
+                try:
+                    response = client.post(self.url, headers=self._headers(), json=payload)
+                except httpx.RequestError as exc:
+                    last = exc
+                    if attempt < max_retries - 1:
+                        time.sleep(min(2 ** attempt, 20))
+                        continue
+                    raise
+
+                if response.status_code in (429, 500, 502, 503, 504):
+                    last = httpx.HTTPStatusError(
+                        f"HTTP {response.status_code}", request=response.request, response=response
+                    )
+                    if attempt < max_retries - 1:
+                        retry_after = response.headers.get("retry-after")
+                        try:
+                            wait = float(retry_after) if retry_after else (2 ** attempt)
+                        except (TypeError, ValueError):
+                            wait = 2 ** attempt
+                        time.sleep(min(wait, 30))
+                        continue
+                    raise last
+
+                response.raise_for_status()
+                return response.json()
+
+        if last:
+            raise last
+        raise RuntimeError("Groq request gagal tanpa detail.")
+
+    def _friendly_error(self, exc) -> str:
+        code = None
+        if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
+            code = exc.response.status_code
+        if code == 429:
+            return "Bot lagi kena rate limit Groq (429). Tunggu ~1 menit lalu coba lagi ya."
+        if code == 401:
+            return "API key Groq tidak valid (401). Cek GROQ_API_KEY di file .env."
+        if code in (404, 400):
+            return (
+                "Model Groq bermasalah (mungkin nama model salah / sudah deprecated). "
+                "Cek GROQ_MODEL di .env, misalnya pakai: llama-3.3-70b-versatile."
+            )
+        if isinstance(exc, httpx.RequestError):
+            return "Gagal terhubung ke Groq (jaringan/SSL). Coba lagi atau cek koneksi."
+        return "Maaf, layanan AI sedang bermasalah. Coba lagi sebentar."
 
     def chat(self, messages):
         payload = {"model": self.model, "messages": messages, "temperature": 0.7, "max_tokens": 1024}
-        return self._post(payload)["choices"][0]["message"]["content"]
+        try:
+            return self._post(payload)["choices"][0]["message"]["content"]
+        except Exception as exc:
+            return self._friendly_error(exc)
 
     def _image_payload_content(self, image_path, prompt):
         mime_type = mimetypes.guess_type(image_path)[0] or "image/jpeg"
@@ -46,7 +96,10 @@ class GroqProvider:
             "temperature": 0.2,
             "max_tokens": 1200,
         }
-        return self._post(payload)["choices"][0]["message"]["content"]
+        try:
+            return self._post(payload)["choices"][0]["message"]["content"]
+        except Exception as exc:
+            return self._friendly_error(exc)
 
     def vision_structured(self, image_path):
         prompt = (
@@ -74,7 +127,10 @@ class GroqProvider:
             "temperature": 0.1,
             "max_tokens": 1200,
         }
-        raw = self._post(payload)["choices"][0]["message"]["content"]
+        try:
+            raw = self._post(payload)["choices"][0]["message"]["content"]
+        except Exception:
+            return {}
         return _parse_json(raw)
 
 
